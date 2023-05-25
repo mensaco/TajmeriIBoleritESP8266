@@ -11,7 +11,9 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecureBearSSL.h>
-#include "C:\Users\MensuriWS\.arduinoIDE\WiFiCreds.h"
+#include "C:\Users\Laptopi\.arduinoIDE\WiFiCreds.h"
+
+
 
 int L = D1;
 int R = D2;
@@ -21,7 +23,8 @@ int INTERR_PIN = D6;
 bool disable = false;
 bool allowAllowance = true;
 
-int DEGREE = 50;
+
+int DEGREE = 61;
 
 int maxT = 60;
 int minT = 20;
@@ -29,7 +32,6 @@ int minT = 20;
 int REPEAT_TIME_MS = 2000;
 unsigned long ALLOWANCE_TIME = 30 * 60 * 1000;  //
 unsigned long msCounter = 0;
-
 
 void resetAllowance() {
   msCounter = millis();
@@ -55,33 +57,38 @@ void turnLeft() {
   digitalWrite(R, LOW);
 }
 
-void turnRight(int degrees) {
+void turnRight(int grade) {
+  int korrigjim = (maxT - grade) / 10 - 1;
   turnRight();
-  delay(degrees * DEGREE);
+  delay((grade - minT + korrigjim) * DEGREE);
   turnOff();
 }
 
-void turnLeft(int degrees) {
+void turnLeft(int grade) {
+  int korrigjim = (maxT - grade) / 10 - 1;
   turnLeft();
-  delay(degrees * DEGREE);
+  delay((grade - minT + korrigjim) * DEGREE);
   turnOff();
 }
 
 void setTemperatureOff() {
-  turnLeft(maxT - minT + 1);
+  turnLeft(60);
 }
 
-void setTemperature(int degrees, bool dontResetAllowance = false) {
+void setTemperature(int grade, bool dontResetAllowance = false) {
+  detachInterrupt(INTERR_PIN);
   if (!disable) {
-    if (degrees < minT) degrees = minT;
-    if (degrees > maxT) degrees = maxT;
+    if (grade < minT) grade = minT;
+    if (grade > maxT) grade = maxT;
+
     setTemperatureOff();
     delay(500);
-    turnRight(degrees - minT + 1);
+    turnRight(grade);
     if (!dontResetAllowance) {
       resetAllowance();
     }
   }
+  attachInterrupt(INTERR_PIN, handleInterrupt, RISING);
 }
 
 
