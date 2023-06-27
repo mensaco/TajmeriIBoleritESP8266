@@ -33,6 +33,9 @@ int REPEAT_TIME_MS = 2000;
 unsigned long ALLOWANCE_TIME = 30 * 60 * 1000;  //
 unsigned long msCounter = 0;
 
+// number of consecutive failures to connect to WiFi before reseting
+int failures = 10;
+
 void resetAllowance() {
   msCounter = millis();
   allowAllowance = true;
@@ -189,6 +192,12 @@ void loop() {
       https.end();
     } else {
       Serial.printf("[HTTPS] Unable to connect\n");
+    }
+  }  
+  else{
+    failures=failures-1;
+    if(failures < 1){
+      ESP.restart();
     }
   }
   //Serial.println();
