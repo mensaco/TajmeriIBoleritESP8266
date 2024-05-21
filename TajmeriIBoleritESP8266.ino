@@ -8,10 +8,11 @@
 */
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecureBearSSL.h>
-#include "C:\Users\Laptopi\.arduinoIDE\WiFiCreds.h"
+#include "C:\Users\MensuriWS\.arduinoIDE\WiFiCreds.h"
 
 
 
@@ -30,11 +31,15 @@ int maxT = 60;
 int minT = 20;
 
 int REPEAT_TIME_MS = 2000;
-unsigned long ALLOWANCE_TIME = 30 * 60 * 1000;  //
+unsigned long ALLOWANCE_TIME = 30 * 60 * 1000;  // kohezgjatja prej vendosjes se nje temperature > 20°C, deri te rivendosja automatike ne 20°C
 unsigned long msCounter = 0;
 
 // number of consecutive failures to connect to WiFi before reseting
 int failures = 10;
+
+String bearerToken = TOKEN;
+
+
 
 void resetAllowance() {
   msCounter = millis();
@@ -132,6 +137,10 @@ void setup() {
   attachInterrupt(INTERR_PIN, handleInterrupt, RISING);
 }
 
+void getNewToken() {
+  Serial.println("I need a new authentication token");
+}
+
 
 // the loop function runs over and over again forever
 void loop() {
@@ -145,24 +154,27 @@ void loop() {
 
   // wait for WiFi connection
   if ((WiFi.status() == WL_CONNECTED)) {
-
-    std::unique_ptr<BearSSL::WiFiClientSecure> client(new BearSSL::WiFiClientSecure);
+    Serial.println("Connected");
+    WiFiClientSecure client;
 
     // Ignore SSL certificate validation
-    client->setInsecure();
+    client.setInsecure();
 
     //create an HTTPClient instance
     HTTPClient https;
 
-    String url = "https://mensaco.org/api/ESP8266/GetLastBoilerTemperature";
-    //Serial.println(url);
+    String url = GET_BOILER_URL;
+    Serial.println(url);
 
     //Initializing an HTTPS communication using the secure client
-    //Serial.print("[HTTPS] begin...\n");
-    if (https.begin(*client, url)) {  // HTTPS
-      //Serial.print("[HTTPS] GET...\n");
+    if (https.begin(client, url)) {  // HTTPS
+
+      https.addHeader("accept", "text/plain");
+      https.addHeader("Authorization", "Bearer " + bearerToken);
+
       // start connection and send HTTP header
       int httpCode = https.GET();
+
       // httpCode will be negative on error
       if (httpCode > 0) {
         // HTTP header has been send and Server response header has been handled
@@ -170,17 +182,32 @@ void loop() {
         // file found at server
         if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
           String payload = https.getString();
-          if (payload == "disable") {
-            disable = true;
-          } else if (payload == "enable") {
-            disable = false;
-          } else {
-            if (payload != "expired") {
-              int pl = payload.toInt();
-              setTemperature(pl);
-              delay(100);
-            }
+
+
+          JsonDocument doc;
+
+          DeserializationError error = deserializeJson(doc, payload);
+
+          if (error) {
+            Serial.print("deserializeJson() failed: ");
+            Serial.println(error.c_str());
+            return;
           }
+
+          //int data_0_id = doc["data"][0]["id"];        // 0
+          int data_0_value = doc["data"][0]["value"];  // 0
+
+          //bool succeeded = doc["succeeded"];  // true
+          // doc["errors"] is null
+          //const char* message = doc["message"];  // "skdjfh aldskjfh asdlkfjhasd lkfh asdlkfhasd fsladkjfh asldkhf ...
+
+          if (data_0_value > 0) {
+            setTemperature(data_0_value, true);
+            Serial.println("setTemperature(data_0_value, true);");
+            Serial.println(data_0_value);
+          }
+
+          delay(100);
 
 
           Serial.println(payload);
@@ -193,10 +220,9 @@ void loop() {
     } else {
       Serial.printf("[HTTPS] Unable to connect\n");
     }
-  }  
-  else{
-    failures=failures-1;
-    if(failures < 1){
+  } else {
+    failures = failures - 1;
+    if (failures < 1) {
       ESP.restart();
     }
   }
